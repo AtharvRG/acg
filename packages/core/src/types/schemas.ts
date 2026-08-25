@@ -70,3 +70,15 @@ export const SessionPolicySchema = z.object({
   expiresAt: z.number().int().positive(),
 });
 export type SessionPolicy = z.infer<typeof SessionPolicySchema>;
+
+// ==========================================
+// 4. VOLUME DISCOUNT RULE SCHEMAS (Forgot this earlier :P)
+// ==========================================
+export const VolumeDiscountRuleSchema = z.object({
+  ruleId: z.string(),
+  targetSkuId: z.string(),
+  minQuantity: z.number().int().positive(),
+  discountPercentage: z.number().int().min(0).max(100), // Strict 0-100 integer range
+  isActive: z.boolean(),
+});
+export type VolumeDiscountRule = z.infer<typeof VolumeDiscountRuleSchema>;

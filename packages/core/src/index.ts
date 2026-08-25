@@ -5,3 +5,6 @@ export * from "./firewall/clock-monitor";
 export * from "./firewall/session-governor";
 export * from "./firewall/gatekeeper";
 export * from "./settlement/razorpay-client";
+export * from "./catalog/discount-engine";
+export * from "./catalog/catalog-store";
+export * from "./catalog/quote-builder";
