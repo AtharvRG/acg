@@ -8,6 +8,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "razorpay": "^2.9.8",
     "zod": "latest"
   },
   "devDependencies": {
