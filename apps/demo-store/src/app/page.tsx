@@ -1,12 +1,13 @@
 "use client";
 
-import { AgenticProvider, MonetaryFirewallBanner, useAgenticSession } from "@acg/react";
+import { AgenticProvider, MonetaryFirewallBanner, AgentCheckoutDrawer, useAgenticSession } from "@acg/react";
 
 function DashboardContent() {
   const { simulateSpend } = useAgenticSession();
 
   return (
-    <main className="flex-1 p-8 max-w-7xl mx-auto w-full">
+    <main className="flex-1 p-8 max-w-7xl mx-auto w-full relative">
+      {/* ... keeping the exact same header and buttons you have from yesterday ... */}
       <header className="mb-12 border-b border-zinc-800 pb-6 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-white">
@@ -17,7 +18,6 @@ function DashboardContent() {
           </p>
         </div>
         
-        {/* The Chaos Simulator Controls */}
         <div className="flex gap-3">
           <button 
             onClick={() => simulateSpend(50000)} // ₹500
@@ -36,7 +36,6 @@ function DashboardContent() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          {/* The Glassmorphic Component you just built */}
           <MonetaryFirewallBanner />
           
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 flex flex-col min-h-[300px]">
@@ -54,11 +53,13 @@ function DashboardContent() {
           </div>
         </div>
       </div>
+
+      {/* Drop the drawer here. It remains hidden until status === "THROTTLED" */}
+      <AgentCheckoutDrawer />
     </main>
   );
 }
 
-// The master wrapper that injects the state context
 export default function Dashboard() {
   return (
     <AgenticProvider>
