@@ -1,8 +1,17 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 import { SessionPolicy } from "@acg/core";
 
+export interface AuditLog {
+  id: string;
+  timestamp: number;
+  action: string;
+  details: string;
+  hash: string;
+}
+
 interface AgenticState {
   session: SessionPolicy | null;
+  logs: AuditLog[];
   setSession: (session: SessionPolicy) => void;
   simulateSpend: (amountPaise: number) => void;
   approveOverdraft: (additionalBudgetPaise: number) => Promise<void>;
@@ -10,12 +19,23 @@ interface AgenticState {
 
 const AgenticContext = createContext<AgenticState | undefined>(undefined);
 
+// Helper to generate a fake SHA-256 hash for the UI demo
+const generateHash = () => Array.from({length: 32}, () => Math.floor(Math.random()*16).toString(16)).join('');
+
 export function AgenticProvider({ children }: { children: ReactNode }) {
+  const [logs, setLogs] = useState<AuditLog[]>([{
+    id: "evt_init",
+    timestamp: Date.now(),
+    action: "SESSION_INITIALIZED",
+    details: "Agent Claude 3.5 Sonnet connected. Budget: ₹5000.00",
+    hash: generateHash()
+  }]);
+
   const [session, setSession] = useState<SessionPolicy>({
     sessionId: "demo_session_1",
     merchantId: "merch_1",
     agentId: "Claude 3.5 Sonnet",
-    maxTotalBudgetPaise: 500000, // ₹5,000
+    maxTotalBudgetPaise: 500000, 
     maxPerTransactionPaise: 200000,
     totalSpentPaise: 150000, 
     remainingAllowancePaise: 350000,
@@ -25,11 +45,24 @@ export function AgenticProvider({ children }: { children: ReactNode }) {
     expiresAt: Date.now() + 86400000
   });
 
+  const addLog = (action: string, details: string) => {
+    setLogs(prev => [{
+      id: `evt_${Date.now()}`,
+      timestamp: Date.now(),
+      action,
+      details,
+      hash: generateHash()
+    }, ...prev]); // Add to top of list
+  };
+
   const simulateSpend = (amountPaise: number) => {
     setSession(prev => {
       if (prev.remainingAllowancePaise < amountPaise) {
-        return { ...prev, status: "THROTTLED" }; // Triggers the Drawer
+        addLog("GATE_EVALUATION_FAIL", `Budget breach attempted. Blocked ₹${(amountPaise/100).toFixed(2)}. Escalating to HITL.`);
+        return { ...prev, status: "THROTTLED" }; 
       }
+      
+      addLog("PAYMENT_SETTLED", `Autonomous execution verified. Debited ₹${(amountPaise/100).toFixed(2)}.`);
       return {
         ...prev,
         totalSpentPaise: prev.totalSpentPaise + amountPaise,
@@ -38,21 +71,23 @@ export function AgenticProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  // Simulates the human hitting "Authorize" and Razorpay processing the mandate addition
   const approveOverdraft = async (additionalBudgetPaise: number) => {
-    // Artificial network delay to simulate Razorpay API
+    addLog("HITL_PENDING", "Merchant reviewing overdraft request via Razorpay UI...");
     await new Promise(resolve => setTimeout(resolve, 1500)); 
     
-    setSession(prev => ({
-      ...prev,
-      status: "ACTIVE",
-      maxTotalBudgetPaise: prev.maxTotalBudgetPaise + additionalBudgetPaise,
-      remainingAllowancePaise: prev.remainingAllowancePaise + additionalBudgetPaise
-    }));
+    setSession(prev => {
+      addLog("HITL_APPROVED", `Mandate expanded by ₹${(additionalBudgetPaise/100).toFixed(2)}. Resuming autonomous execution.`);
+      return {
+        ...prev,
+        status: "ACTIVE",
+        maxTotalBudgetPaise: prev.maxTotalBudgetPaise + additionalBudgetPaise,
+        remainingAllowancePaise: prev.remainingAllowancePaise + additionalBudgetPaise
+      };
+    });
   };
 
   return (
-    <AgenticContext value={{ session, setSession, simulateSpend, approveOverdraft }}>
+    <AgenticContext value={{ session, logs, setSession, simulateSpend, approveOverdraft }}>
       {children}
     </AgenticContext>
   );

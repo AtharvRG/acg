@@ -1,6 +1,6 @@
 "use client";
 
-import { AgenticProvider, MonetaryFirewallBanner, AgentCheckoutDrawer, useAgenticSession } from "@acg/react";
+import { AgenticProvider, MonetaryFirewallBanner, AgentCheckoutDrawer, AuditLedger, useAgenticSession } from "@acg/react";
 
 function DashboardContent() {
   const { simulateSpend } = useAgenticSession();
@@ -47,10 +47,7 @@ function DashboardContent() {
         </div>
 
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 flex flex-col min-h-[400px]">
-          <h3 className="text-white font-medium mb-4">Audit Ledger</h3>
-          <div className="flex-1 border border-zinc-800/50 bg-black/50 rounded-lg p-4 font-mono text-xs text-zinc-600 flex items-center justify-center text-center">
-            [ Cryptographic Action Logs Will Appear Here ]
-          </div>
+          <AuditLedger />
         </div>
       </div>
 
