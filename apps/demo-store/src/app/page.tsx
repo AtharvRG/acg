@@ -46,7 +46,7 @@ function DashboardContent() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 flex flex-col min-h-[400px]">
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 flex flex-col h-[500px]">
           <AuditLedger />
         </div>
       </div>

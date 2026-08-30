@@ -19,16 +19,20 @@ interface AgenticState {
 
 const AgenticContext = createContext<AgenticState | undefined>(undefined);
 
-// Helper to generate a fake SHA-256 hash for the UI demo
+// Generate random hash, but keep a counter for guaranteed unique keys
+let logCounter = 1;
 const generateHash = () => Array.from({length: 32}, () => Math.floor(Math.random()*16).toString(16)).join('');
+
+// Static initial data prevents Next.js SSR Hydration errors
+const STATIC_INITIAL_TIME = 1724300000000; 
 
 export function AgenticProvider({ children }: { children: ReactNode }) {
   const [logs, setLogs] = useState<AuditLog[]>([{
-    id: "evt_init",
-    timestamp: Date.now(),
+    id: "evt_init_0",
+    timestamp: STATIC_INITIAL_TIME,
     action: "SESSION_INITIALIZED",
     details: "Agent Claude 3.5 Sonnet connected. Budget: ₹5000.00",
-    hash: generateHash()
+    hash: "bdfe6899347902429ada9426d4b050f6" // Static hash for SSR
   }]);
 
   const [session, setSession] = useState<SessionPolicy>({
@@ -41,49 +45,49 @@ export function AgenticProvider({ children }: { children: ReactNode }) {
     remainingAllowancePaise: 350000,
     maxVelocityPerMinute: 10,
     status: "ACTIVE",
-    createdAt: Date.now(),
-    expiresAt: Date.now() + 86400000
+    createdAt: STATIC_INITIAL_TIME,
+    expiresAt: STATIC_INITIAL_TIME + 86400000
   });
 
+  // Appends to the end of the array (Top-to-Bottom flow)
   const addLog = (action: string, details: string) => {
-    setLogs(prev => [{
-      id: `evt_${Date.now()}`,
+    setLogs(prev => [...prev, {
+      id: `evt_${Date.now()}_${logCounter++}`,
       timestamp: Date.now(),
       action,
       details,
       hash: generateHash()
-    }, ...prev]); // Add to top of list
+    }]);
   };
 
   const simulateSpend = (amountPaise: number) => {
-    setSession(prev => {
-      if (prev.remainingAllowancePaise < amountPaise) {
-        addLog("GATE_EVALUATION_FAIL", `Budget breach attempted. Blocked ₹${(amountPaise/100).toFixed(2)}. Escalating to HITL.`);
-        return { ...prev, status: "THROTTLED" }; 
-      }
-      
+    // Read the current state directly instead of using functional updates for evaluation
+    // This prevents React Strict Mode from firing addLog twice
+    if (session.remainingAllowancePaise < amountPaise) {
+      addLog("GATE_EVALUATION_FAIL", `Budget breach attempted. Blocked ₹${(amountPaise/100).toFixed(2)}. Escalating to HITL.`);
+      setSession(prev => ({ ...prev, status: "THROTTLED" }));
+    } else {
       addLog("PAYMENT_SETTLED", `Autonomous execution verified. Debited ₹${(amountPaise/100).toFixed(2)}.`);
-      return {
+      setSession(prev => ({
         ...prev,
         totalSpentPaise: prev.totalSpentPaise + amountPaise,
         remainingAllowancePaise: prev.remainingAllowancePaise - amountPaise
-      };
-    });
+      }));
+    }
   };
 
   const approveOverdraft = async (additionalBudgetPaise: number) => {
     addLog("HITL_PENDING", "Merchant reviewing overdraft request via Razorpay UI...");
+    
     await new Promise(resolve => setTimeout(resolve, 1500)); 
     
-    setSession(prev => {
-      addLog("HITL_APPROVED", `Mandate expanded by ₹${(additionalBudgetPaise/100).toFixed(2)}. Resuming autonomous execution.`);
-      return {
-        ...prev,
-        status: "ACTIVE",
-        maxTotalBudgetPaise: prev.maxTotalBudgetPaise + additionalBudgetPaise,
-        remainingAllowancePaise: prev.remainingAllowancePaise + additionalBudgetPaise
-      };
-    });
+    addLog("HITL_APPROVED", `Mandate expanded by ₹${(additionalBudgetPaise/100).toFixed(2)}. Resuming autonomous execution.`);
+    setSession(prev => ({
+      ...prev,
+      status: "ACTIVE",
+      maxTotalBudgetPaise: prev.maxTotalBudgetPaise + additionalBudgetPaise,
+      remainingAllowancePaise: prev.remainingAllowancePaise + additionalBudgetPaise
+    }));
   };
 
   return (
