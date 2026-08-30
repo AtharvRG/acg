@@ -1,16 +1,17 @@
 import { useState } from "react";
 import { useAgenticSession } from "../context/AgenticContext";
-import { Lock, Fingerprint, CheckCircle2, ShieldAlert } from "lucide-react";
+import { Lock, Fingerprint, CheckCircle2, ShieldAlert, Minimize2 } from "lucide-react";
 import { cn } from "../utils/cn";
 
 export function AgentCheckoutDrawer() {
   const { session, approveOverdraft } = useAgenticSession();
   const [isProcessing, setIsProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
 
   if (!session) return null;
 
-  const isOpen = session.status === "THROTTLED";
+  const isOpen = session.status === "THROTTLED" && !isHidden;
   const additionalBudget = 5000; 
 
   const handleAuthorize = async () => {
@@ -43,10 +44,19 @@ export function AgentCheckoutDrawer() {
             <Lock className="w-5 h-5 text-brand" />
             <h2 className="text-lg font-semibold text-white tracking-wide">Manual Authorization</h2>
           </div>
-          <span className="px-2 py-1 bg-red-500/10 text-red-500 text-xs font-mono rounded border border-red-500/20 flex items-center gap-1 shadow-sm">
-            <ShieldAlert className="w-3 h-3" />
-            BUDGET BREACH
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsHidden(true)}
+              className="p-1.5 rounded-lg hover:bg-zinc-800 transition-colors text-zinc-400 hover:text-white"
+              title="Hide drawer"
+            >
+              <Minimize2 className="w-4 h-4" />
+            </button>
+            <span className="px-2 py-1 bg-red-500/10 text-red-500 text-xs font-mono rounded border border-red-500/20 flex items-center gap-1 shadow-sm">
+              <ShieldAlert className="w-3 h-3" />
+              BUDGET BREACH
+            </span>
+          </div>
         </div>
 
         <div className="flex-1 p-6 overflow-y-auto flex flex-col">
@@ -97,6 +107,17 @@ export function AgentCheckoutDrawer() {
           </div>
         </div>
       </div>
+
+      {/* Floating restore button - appears when drawer is hidden */}
+      {session.status === "THROTTLED" && isHidden && (
+        <button
+          onClick={() => setIsHidden(false)}
+          className="fixed bottom-6 right-6 z-50 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg shadow-lg transition-all duration-300 hover:shadow-red-500/20 flex items-center gap-2"
+        >
+          <ShieldAlert className="w-4 h-4" />
+          <span className="text-sm font-medium">Restore Budget Alert</span>
+        </button>
+      )}
     </>
   );
 }

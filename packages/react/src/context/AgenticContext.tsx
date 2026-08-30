@@ -1,6 +1,5 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode, useEffect } from "react";
 import { SessionPolicy } from "@acg/core";
-
 export interface AuditLog {
   id: string;
   timestamp: number;
@@ -48,6 +47,25 @@ export function AgenticProvider({ children }: { children: ReactNode }) {
     createdAt: STATIC_INITIAL_TIME,
     expiresAt: STATIC_INITIAL_TIME + 86400000
   });
+
+useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/sync");
+        const data = await res.json();
+        
+        if (data.session) setSession(data.session);
+        if (data.logs && data.logs.length > 0) {
+          // Sync UI logs strictly with the Server's authoritative array
+          setLogs(data.logs);
+        }
+      } catch (err) {
+        // Silently fail if server is busy
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Appends to the end of the array (Top-to-Bottom flow)
   const addLog = (action: string, details: string) => {

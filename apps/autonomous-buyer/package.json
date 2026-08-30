@@ -1,0 +1,17 @@
+{
+  "name": "autonomous-buyer",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "tsx src/agent.ts"
+  },
+  "dependencies": {
+    "@mistralai/mistralai": "latest",
+    "@modelcontextprotocol/sdk": "latest",
+    "dotenv": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "tsx": "latest"
+  }
+}
