@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic"; // THE FIX: Disables aggressive Next.js caching
+
 const globalForSync = globalThis as unknown as {
   acgState: { session: any; logs: any[] } | undefined;
 };
@@ -17,7 +19,6 @@ if (!globalForSync.acgState) {
   };
 }
 
-// CORS Headers to allow Port 3001 to read from Port 3000
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -30,10 +31,10 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const body = await req.json();
-
+  
   if (body.session) globalForSync.acgState!.session = body.session;
   if (body.newLog) globalForSync.acgState!.logs = [...globalForSync.acgState!.logs, body.newLog];
-
+  
   return NextResponse.json({ success: true }, { headers: corsHeaders });
 }
 

@@ -1,6 +1,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import * as http from "http";
 import { z } from "zod";
 import { OrderItemInputSchema, DraftQuoteSchema } from "@acg/core";
 import { kernel } from "./kernel.js";
@@ -113,5 +114,66 @@ export class AcgMcpServer {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     console.error("ACG MCP Server running on stdio");
+
+    // Real-time backend listener for Human-in-the-Loop approvals from the Dashboard
+    http.createServer((req, res) => {
+      // CORS headers so the React dashboard can talk to it
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+      if (req.method === "OPTIONS") { res.writeHead(200); res.end(); return; }
+      
+      // NEW: Budget Update Endpoint
+      if (req.url === "/update-budget" && req.method === "POST") {
+        let body = "";
+        req.on("data", chunk => body += chunk.toString());
+        req.on("end", async () => {
+          const { newBudgetPaise } = JSON.parse(body);
+          const session = kernel.governor.getSession(kernel.SESSION_ID);
+          if (session) {
+            session.maxTotalBudgetPaise = newBudgetPaise;
+            const remaining = newBudgetPaise - session.totalSpentPaise;
+            session.remainingAllowancePaise = remaining > 0 ? remaining : 0;
+            session.status = remaining > 0 ? "ACTIVE" : "EXHAUSTED";
+            session.pendingShortfallPaise = 0;
+            await syncToDashboard("BUDGET_UPDATED", `Budget manually adjusted to ₹${(newBudgetPaise/100).toLocaleString("en-IN")}.`);
+          }
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: true }));
+        });
+        return;
+      }
+
+      // EXISTING: HITL Approval Endpoint
+      if (req.url === "/approve-hitl" && req.method === "POST") {
+        let body = "";
+        req.on("data", chunk => body += chunk.toString());
+        req.on("end", async () => {
+          const { additionalBudgetPaise } = JSON.parse(body);
+          const session = kernel.governor.getSession(kernel.SESSION_ID);
+          
+          if (session) {
+            // 1. Unlock the AI's session
+            session.status = "ACTIVE";
+            
+            // 2. Add the requested funds
+            session.maxTotalBudgetPaise += additionalBudgetPaise;
+            session.remainingAllowancePaise += additionalBudgetPaise;
+            
+            // 3. IMPORTANT: Lift the transaction ceiling so the massive purchase succeeds on retry
+            session.maxPerTransactionPaise += additionalBudgetPaise;
+            
+            // Clear the shortfall indicator
+            session.pendingShortfallPaise = 0;
+            
+            // Push the updated success log to the dashboard immediately
+            await syncToDashboard("HITL_APPROVED", `Mandate expanded by ₹${(additionalBudgetPaise/100).toLocaleString("en-IN")}. Resuming autonomous execution.`);
+          }
+          
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: true }));
+        });
+        return;
+      }
+    }).listen(3002); // Listens on Port 3002
   }
 }

@@ -1,6 +1,6 @@
 export class ClockMonitor {
-  private readonly maxDriftMs = 2000; // Allow 2 seconds of server time-skew
-  private readonly maxTtlMs = 60000;  // 60 seconds absolute maximum lifespan
+  private readonly maxDriftMs = 2000; 
+  private readonly maxTtlMs = 300000;  // THE FIX: Increased to 5 minutes (300,000ms)
 
   /**
    * Verifies the temporal validity of a transaction request.

@@ -64,6 +64,7 @@ export const SessionPolicySchema = z.object({
   maxPerTransactionPaise: z.number().int().nonnegative(),
   totalSpentPaise: z.number().int().nonnegative(),
   remainingAllowancePaise: z.number().int().nonnegative(),
+  pendingShortfallPaise: z.number().int().nonnegative().optional(), // <--- ADD THIS
   maxVelocityPerMinute: z.number().int().positive(),
   status: z.enum(["ACTIVE", "EXHAUSTED", "THROTTLED", "TERMINATED"]),
   createdAt: z.number().int().positive(),

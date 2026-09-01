@@ -13,56 +13,51 @@ const client = new Mistral({ apiKey });
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
 async function runInteractiveAgent() {
-  console.log("\n[1] Booting Agentic Commerce Gateway (MCP Client)...");
+  process.stdout.write("\x1Bc"); // Clear console
+  console.log("ACG Agentic CLI v1.0.0");
+  console.log("Initializing secure MCP connection...");
   
   const transport = new StdioClientTransport({
     command: "npx",
     args: ["tsx", "../../packages/mcp-server/src/index.ts"],
+    env: { ...process.env } as Record<string, string>
   });
 
-  const mcpClient = new Client({ name: "mistral-buyer", version: "1.0.0" }, { capabilities: {} });
+  const mcpClient = new Client({ name: "agentic-cli", version: "1.0.0" }, { capabilities: {} });
   await mcpClient.connect(transport);
   
-  console.log("[2] Connected to MCP Server. Fetching secure catalog tools...\n");
   const { tools: mcpTools } = await mcpClient.listTools();
-
   const mistralTools = mcpTools.map(t => ({
     type: "function" as const,
     function: { name: t.name, description: t.description, parameters: t.inputSchema }
   }));
 
-  // STRICTLY A SYSTEM PROMPT. No fake user messages.
-  const messages: any[] = [
+const messages: any[] = [
     {
       role: "system",
-      content: `You are 'ForgeBot', an autonomous Cloud Infrastructure Procurement AI. 
-      You manage compute credits. The user (DevOps Engineer) will tell you what to do.
-      
+      content: `You are 'Agentic CLI', an autonomous enterprise procurement agent.
       RULES:
-      1. Always use 'search_catalog' to verify SKUs (e.g. COMPUTE_01).
-      2. If buying >= 50, use 'request_volume_tier' to negotiate a discount.
-      3. Use 'draft_quote' to seal the intent.
-      4. Use 'execute_checkout' to pay.
-      5. If checkout returns 'REQUIRES_HITL', tell the user to authorize it in the dashboard.
-      6. Do NOT make up an order ID if the checkout fails.`
+      1. Use 'search_catalog' to verify SKUs and prices first.
+      2. CURRENCY FORMATTING: All prices returned by tools are in PAISE (1 Rupee = 100 Paise). You MUST divide the returned price by 100 before showing the '₹' amount to the user. (e.g., 50000 paise = ₹500.00).
+      3. If buying >= 50 units, use 'request_volume_tier' to negotiate a discount.
+      4. Use 'draft_quote' to seal the intent.
+      5. Use 'execute_checkout' to pay.
+      6. If checkout returns 'REQUIRES_HITL', tell the user to authorize it in the ACG Dashboard. Do not invent URLs.
+      7. CRITICAL: If the user says they authorized the request, immediately call 'execute_checkout' again with the same quote.`
     }
   ];
 
-  console.log("=========================================================");
-  console.log("🧠 FORGEBOT (MISTRAL AI) INFRASTRUCTURE MANAGER ONLINE");
-  console.log("   Type your commands below. Type 'exit' to quit.");
-  console.log("=========================================================\n");
+  console.log("Connection established. Waiting for prompt.\n");
 
   while (true) {
-    const userInput = await rl.question("👨‍💻 YOU: ");
+    const userInput = await rl.question("> User: ");
     if (userInput.toLowerCase() === "exit") break;
 
     messages.push({ role: "user", content: userInput });
-
     let isThinking = true;
 
     while (isThinking) {
-      process.stdout.write("🤖 FORGEBOT is thinking...\r");
+      process.stdout.write("\x1b[2m> Agent is thinking...\x1b[0m\r"); // Dim text
       
       const response = await client.chat.complete({
         model: "mistral-large-latest",
@@ -75,33 +70,23 @@ async function runInteractiveAgent() {
       if (!assistantMsg) break;
 
       messages.push(assistantMsg);
-      process.stdout.write("                          \r"); // clear thinking line
+      process.stdout.write("\x1b[2K\r"); // Clear thinking line
 
       if (assistantMsg.content) {
-        console.log(`🤖 FORGEBOT: ${assistantMsg.content}\n`);
+        console.log(`> Agent: ${assistantMsg.content}\n`);
       }
 
       if (assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0) {
         for (const tc of assistantMsg.toolCalls) {
-          console.log(`   ⚙️  [SYSTEM] Executing Tool: ${tc.function.name}...`);
+          console.log(`\x1b[2m  [Executing: ${tc.function.name}]\x1b[0m`);
           
-          const args = typeof tc.function.arguments === "string" 
-            ? JSON.parse(tc.function.arguments) 
-            : tc.function.arguments;
+          const args = typeof tc.function.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function.arguments;
           
           try {
             const result = await mcpClient.callTool({ name: tc.function.name, arguments: args });
             const textOutput = ((result as any).content[0] as any).text;
-            
-            messages.push({
-              role: "tool",
-              toolCallId: tc.id,
-              content: textOutput,
-              name: tc.function.name,
-            });
-            // (Webhook removed from here. The backend will handle it now.)
+            messages.push({ role: "tool", toolCallId: tc.id, content: textOutput, name: tc.function.name });
           } catch (error: any) {
-            console.error(`   ❌ Tool Error:`, error.message);
             messages.push({ role: "tool", toolCallId: tc.id, content: `ERROR: ${error.message}`, name: tc.function.name });
           }
         }

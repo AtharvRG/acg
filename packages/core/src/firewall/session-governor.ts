@@ -3,9 +3,6 @@ import { SessionPolicy } from "../types/schemas";
 export class SessionGovernor {
   private activeSessions = new Map<string, SessionPolicy>();
 
-  /**
-   * Hydrates a session policy into the governor.
-   */
   public registerSession(policy: SessionPolicy): void {
     this.activeSessions.set(policy.sessionId, { ...policy });
   }
@@ -14,31 +11,37 @@ export class SessionGovernor {
     return this.activeSessions.get(sessionId);
   }
 
-  /**
-   * Evaluates the budget and atomically deducts the amount if valid.
-   * Returns true if execution is permitted, false if it breaches policy.
-   */
   public attemptDebit(sessionId: string, netAmountPaise: number): boolean {
     const session = this.activeSessions.get(sessionId);
     
-    // 1. Session Existence & Status Check
-    if (!session || session.status !== "ACTIVE") {
+    if (!session || session.status === "TERMINATED" || session.status === "EXHAUSTED") {
       return false;
     }
 
-    // 2. Per-Transaction Ceiling Check
+    let isBlocked = false;
+
+    // Check 1: Does it exceed the Per-Transaction Ceiling?
     if (netAmountPaise > session.maxPerTransactionPaise) {
-      return false;
+      isBlocked = true;
     }
-
-    // 3. Overall Budget Margin Check
+    
+    // Check 2: Does it exceed the Overall Remaining Budget?
     if (session.remainingAllowancePaise < netAmountPaise) {
-      return false; // Triggers Asynchronous HITL Pause in the higher levels
+      isBlocked = true;
     }
 
-    // 4. Atomic Execution (Optimistic Concurrency Control Simulation)
+    if (isBlocked) {
+      // Calculate exactly how much money the AI is missing
+      const deficit = netAmountPaise - session.remainingAllowancePaise;
+      session.pendingShortfallPaise = deficit > 0 ? deficit : 0;
+      session.status = "THROTTLED"; 
+      return false; 
+    }
+
+    // Mathematical Execution
     session.remainingAllowancePaise -= netAmountPaise;
     session.totalSpentPaise += netAmountPaise;
+    session.pendingShortfallPaise = 0;
     
     if (session.remainingAllowancePaise === 0) {
       session.status = "EXHAUSTED";

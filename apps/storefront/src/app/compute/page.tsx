@@ -88,7 +88,7 @@ export default function ComputePortal() {
       key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
       amount: finalPrice * 100,
       currency: "INR",
-      name: "CloudSaaS Infrastructure",
+      name: "Compute Store Infrastructure",
       description: `${qty}x Enterprise GPU Nodes`,
       order_id: orderData.orderId,
       handler: function (response: any) {
@@ -113,7 +113,7 @@ export default function ComputePortal() {
           <div className="w-7 h-7 bg-[#FF5C00] rounded-md flex items-center justify-center">
             <Server className="w-4 h-4 text-black" />
           </div>
-          <span className="text-white font-bold tracking-wide text-sm">CloudSaaS</span>
+          <span className="text-white font-bold tracking-wide text-sm">Compute Store</span>
         </div>
         <div className="px-4 py-2 flex-1 space-y-1">
           <div className="relative mb-6">

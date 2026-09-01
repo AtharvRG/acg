@@ -1,9 +1,12 @@
+import { useState } from "react";
 import { useAgenticSession } from "../context/AgenticContext";
 import { ShieldCheck, ShieldAlert, Activity } from "lucide-react";
 import { cn } from "../utils/cn";
 
 export function MonetaryFirewallBanner() {
-  const { session } = useAgenticSession();
+  const { session, updateBudget } = useAgenticSession();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(0);
   
   if (!session) return null;
 
@@ -12,6 +15,12 @@ export function MonetaryFirewallBanner() {
   const utilization = Math.min((spentRupees / budgetRupees) * 100, 100);
   
   const isBreached = session.status === "THROTTLED" || session.status === "EXHAUSTED";
+
+  const handleBudgetSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateBudget(editValue * 100);
+    setIsEditing(false);
+  };
 
   return (
     <div className={cn(
@@ -42,7 +51,21 @@ export function MonetaryFirewallBanner() {
         <div className="flex justify-between text-sm font-mono">
           <span className="text-zinc-400">SESSION SPEND</span>
           <span className={isBreached ? "text-red-400" : "text-white"}>
-            ₹{spentRupees.toFixed(2)} / ₹{budgetRupees.toFixed(2)}
+            ₹{spentRupees.toLocaleString("en-IN")} / {isEditing ? (
+              <form onSubmit={handleBudgetSubmit} className="inline-block">
+                <input 
+                  type="number" autoFocus
+                  value={editValue || budgetRupees}
+                  onChange={(e) => setEditValue(Number(e.target.value))}
+                  onBlur={handleBudgetSubmit}
+                  className="bg-transparent border-b border-zinc-500 text-white w-20 outline-none text-right"
+                />
+              </form>
+            ) : (
+              <span onClick={() => { setEditValue(budgetRupees); setIsEditing(true); }} className="cursor-pointer border-b border-dashed border-zinc-600 hover:text-zinc-300">
+                ₹{budgetRupees.toLocaleString("en-IN")}
+              </span>
+            )}
           </span>
         </div>
         

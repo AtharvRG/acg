@@ -7,23 +7,32 @@ export function AuditLedger() {
   const { logs } = useAgenticSession();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
+  const [isAutoScroll, setIsAutoScroll] = useState(true);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    // If user scrolls up, disable auto-scroll. If they hit the bottom, re-enable.
+    setIsAutoScroll(scrollHeight - scrollTop - clientHeight < 20);
+  };
+
   // Auto-scroll to bottom on the main container
   useEffect(() => {
-    if (scrollRef.current) {
+    if (isAutoScroll && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [logs]);
+  }, [logs, isAutoScroll]);
 
   if (!mounted) return null;
 
   return (
     <div 
       ref={scrollRef}
+      onScroll={handleScroll}
       className="flex flex-col h-full w-full overflow-y-auto scroll-smooth scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent pr-2"
     >
       <div className="flex items-center gap-2 mb-4 px-1 shrink-0">

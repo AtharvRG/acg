@@ -49,7 +49,7 @@ export class QuoteBuilder {
       currency: "INR",
       nonce: randomUUID(), // The anti-replay token
       issuedAt,
-      expiresAt: issuedAt + 60000 // Strict 60-second execution window
+      expiresAt: issuedAt + 300000 // 5-minute execution window for HITL delays
     };
 
     const signature = this.signer.sign(quote);

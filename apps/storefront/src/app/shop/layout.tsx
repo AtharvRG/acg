@@ -12,7 +12,7 @@ function StoreNav() {
 
   return (
     <nav className="w-full px-8 py-6 flex items-center justify-between border-b border-gray-100 bg-white">
-      <Link href="/" className="font-black text-2xl tracking-tighter">N/</Link>
+      <Link href="/" className="font-black text-2xl tracking-tighter">Audio Store</Link>
       <div className="hidden md:flex gap-8 text-sm font-medium">
         <Link href="#" className="hover:opacity-60">About</Link>
         <Link href="/shop" className="hover:opacity-60">Collections</Link>

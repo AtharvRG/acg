@@ -12,7 +12,7 @@ interface AgenticState {
   session: SessionPolicy | null;
   logs: AuditLog[];
   setSession: (session: SessionPolicy) => void;
-  simulateSpend: (amountPaise: number) => void;
+  updateBudget: (newBudgetPaise: number) => Promise<void>;
   approveOverdraft: (additionalBudgetPaise: number) => Promise<void>;
 }
 
@@ -51,7 +51,7 @@ export function AgenticProvider({ children }: { children: ReactNode }) {
 useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const res = await fetch("/api/sync");
+        const res = await fetch("/api/sync", { cache: "no-store" });
         const data = await res.json();
         
         if (data.session) setSession(data.session);
@@ -78,38 +78,30 @@ useEffect(() => {
     }]);
   };
 
-  const simulateSpend = (amountPaise: number) => {
-    // Read the current state directly instead of using functional updates for evaluation
-    // This prevents React Strict Mode from firing addLog twice
-    if (session.remainingAllowancePaise < amountPaise) {
-      addLog("GATE_EVALUATION_FAIL", `Budget breach attempted. Blocked ₹${(amountPaise/100).toFixed(2)}. Escalating to HITL.`);
-      setSession(prev => ({ ...prev, status: "THROTTLED" }));
-    } else {
-      addLog("PAYMENT_SETTLED", `Autonomous execution verified. Debited ₹${(amountPaise/100).toFixed(2)}.`);
-      setSession(prev => ({
-        ...prev,
-        totalSpentPaise: prev.totalSpentPaise + amountPaise,
-        remainingAllowancePaise: prev.remainingAllowancePaise - amountPaise
-      }));
-    }
+  const updateBudget = async (newBudgetPaise: number) => {
+    try {
+      await fetch("http://localhost:3002/update-budget", {
+        method: "POST", body: JSON.stringify({ newBudgetPaise })
+      });
+    } catch (e) { console.error("Backend unreachable"); }
   };
 
   const approveOverdraft = async (additionalBudgetPaise: number) => {
-    addLog("HITL_PENDING", "Merchant reviewing overdraft request via Razorpay UI...");
-    
-    await new Promise(resolve => setTimeout(resolve, 1500)); 
-    
-    addLog("HITL_APPROVED", `Mandate expanded by ₹${(additionalBudgetPaise/100).toFixed(2)}. Resuming autonomous execution.`);
-    setSession(prev => ({
-      ...prev,
-      status: "ACTIVE",
-      maxTotalBudgetPaise: prev.maxTotalBudgetPaise + additionalBudgetPaise,
-      remainingAllowancePaise: prev.remainingAllowancePaise + additionalBudgetPaise
-    }));
+    try {
+      // Tell the backend kernel to physically unlock the session
+      await fetch("http://localhost:3002/approve-hitl", {
+        method: "POST",
+        body: JSON.stringify({ additionalBudgetPaise })
+      });
+      // We don't need to manually update React state here, 
+      // because our 1-second polling loop will instantly catch the new "ACTIVE" state from the backend!
+    } catch (e) {
+      console.error("Backend unreachable");
+    }
   };
 
   return (
-    <AgenticContext value={{ session, logs, setSession, simulateSpend, approveOverdraft }}>
+    <AgenticContext value={{ session, logs, setSession, updateBudget, approveOverdraft }}>
       {children}
     </AgenticContext>
   );
