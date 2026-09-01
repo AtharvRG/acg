@@ -1,6 +1,7 @@
 import { Mistral } from "@mistralai/mistralai";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import * as readline from "readline/promises";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -9,8 +10,9 @@ const apiKey = process.env.MISTRAL_API_KEY;
 if (!apiKey) throw new Error("MISTRAL_API_KEY is missing in .env");
 
 const client = new Mistral({ apiKey });
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
-async function runAutonomousProcurement() {
+async function runInteractiveAgent() {
   console.log("\n[1] Booting Agentic Commerce Gateway (MCP Client)...");
   
   const transport = new StdioClientTransport({
@@ -26,121 +28,91 @@ async function runAutonomousProcurement() {
 
   const mistralTools = mcpTools.map(t => ({
     type: "function" as const,
-    function: {
-      name: t.name,
-      description: t.description,
-      parameters: t.inputSchema,
-    }
+    function: { name: t.name, description: t.description, parameters: t.inputSchema }
   }));
 
-  // THE FIX: Strict System Persona + Direct User Command
+  // STRICTLY A SYSTEM PROMPT. No fake user messages.
   const messages: any[] = [
     {
       role: "system",
-      content: `You are an elite, headless B2B procurement AI. 
-      You DO NOT write conversational text. You DO NOT output markdown.
-      You MUST use the provided function tools directly to execute your tasks.`
-    },
-    {
-      role: "user",
-      content: `EXECUTE PROCUREMENT RUN:
-      1. Use 'search_catalog' to find the SKU for "Enterprise GPU Compute Hour".
-      2. Use 'request_volume_tier' to negotiate a price for exactly 50 units.
-      3. Use 'draft_quote' to create a cryptographically signed intent using the SKU and quantity.
-      4. Use 'execute_checkout' to pay.
+      content: `You are 'ForgeBot', an autonomous Cloud Infrastructure Procurement AI. 
+      You manage compute credits. The user (DevOps Engineer) will tell you what to do.
       
-      Begin tool execution immediately.`
+      RULES:
+      1. Always use 'search_catalog' to verify SKUs (e.g. COMPUTE_01).
+      2. If buying >= 50, use 'request_volume_tier' to negotiate a discount.
+      3. Use 'draft_quote' to seal the intent.
+      4. Use 'execute_checkout' to pay.
+      5. If checkout returns 'REQUIRES_HITL', tell the user to authorize it in the dashboard.
+      6. Do NOT make up an order ID if the checkout fails.`
     }
   ];
 
-  console.log("================================================");
-  console.log("🧠 MISTRAL PROCUREMENT AGENT ONLINE");
-  console.log("================================================\n");
+  console.log("=========================================================");
+  console.log("🧠 FORGEBOT (MISTRAL AI) INFRASTRUCTURE MANAGER ONLINE");
+  console.log("   Type your commands below. Type 'exit' to quit.");
+  console.log("=========================================================\n");
 
   while (true) {
-    const response = await client.chat.complete({
-      model: "mistral-large-latest",
-      messages,
-      tools: mistralTools,
-      toolChoice: "auto", // Forces the model to evaluate tools
-    });
+    const userInput = await rl.question("👨‍💻 YOU: ");
+    if (userInput.toLowerCase() === "exit") break;
 
-    const assistantMsg = response.choices?.[0]?.message;
-    if (!assistantMsg) break;
+    messages.push({ role: "user", content: userInput });
 
-    messages.push(assistantMsg);
+    let isThinking = true;
 
-    if (assistantMsg.content) {
-      console.log(`\n🤖 MISTRAL: ${assistantMsg.content}`);
-    }
+    while (isThinking) {
+      process.stdout.write("🤖 FORGEBOT is thinking...\r");
+      
+      const response = await client.chat.complete({
+        model: "mistral-large-latest",
+        messages,
+        tools: mistralTools,
+        toolChoice: "auto",
+      });
 
-    if (assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0) {
-      for (const tc of assistantMsg.toolCalls) {
-        console.log(`\n⚙️  EXECUTING TOOL: [${tc.function.name}]`);
-        const args = typeof tc.function.arguments === "string" 
-          ? JSON.parse(tc.function.arguments) 
-          : tc.function.arguments;
-        
-        console.log(`   Payload:`, JSON.stringify(args));
+      const assistantMsg = response.choices?.[0]?.message;
+      if (!assistantMsg) break;
 
-        try {
-          const result = await mcpClient.callTool({ name: tc.function.name, arguments: args });
-          const content = (result.content ?? []) as Array<{ text?: string }>;
-          const textOutput = content[0]?.text ?? "";
-          
-          console.log(`   Response:`, textOutput.substring(0, 200) + (textOutput.length > 200 ? "..." : ""));
+      messages.push(assistantMsg);
+      process.stdout.write("                          \r"); // clear thinking line
 
-          messages.push({
-            role: "tool",
-            toolCallId: tc.id,
-            content: textOutput,
-            name: tc.function.name,
-          });
-
-          // Webhook to update Next.js React UI
-          const isBreach = textOutput.includes("BUDGET_BREACH");
-          const isSettled = textOutput.includes("APPROVED");
-          
-          await fetch("http://localhost:3000/api/sync", {
-             method: "POST", 
-             body: JSON.stringify({
-               session: {
-                 sessionId: "demo_session_1",
-                 merchantId: "merch_1",
-                 agentId: "Mistral-Large (Autonomous)", // Updates UI to show Mistral is driving
-                 status: isBreach ? "THROTTLED" : "ACTIVE",
-                 remainingAllowancePaise: isBreach ? 0 : (isSettled ? 350000 - 1875000 : 350000),
-                 maxTotalBudgetPaise: 500000,
-                 totalSpentPaise: isSettled ? 150000 + 1875000 : 150000, 
-                 maxVelocityPerMinute: 10,
-                 createdAt: 1724300000000,
-                 expiresAt: 1724300000000 + 86400000
-               },
-               newLog: { 
-                 id: `log_${Date.now()}_${Math.random()}`, 
-                 timestamp: Date.now(), 
-                 action: isBreach ? "GATE_EVALUATION_FAIL" : tc.function.name.toUpperCase(), 
-                 details: isBreach ? "Budget limit breached. Execution halted." : `Mistral executed ${tc.function.name}.`, 
-                 hash: "hash_" + Date.now().toString(16) 
-               }
-             })
-          }).catch(() => {}); 
-
-        } catch (error: any) {
-          console.error(`   Error executing tool:`, error.message);
-          messages.push({
-            role: "tool",
-            toolCallId: tc.id,
-            content: `ERROR: ${error.message}`,
-            name: tc.function.name,
-          });
-        }
+      if (assistantMsg.content) {
+        console.log(`🤖 FORGEBOT: ${assistantMsg.content}\n`);
       }
-    } else {
-      console.log("\n✅ PROCUREMENT COMPLETE.");
-      break;
+
+      if (assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0) {
+        for (const tc of assistantMsg.toolCalls) {
+          console.log(`   ⚙️  [SYSTEM] Executing Tool: ${tc.function.name}...`);
+          
+          const args = typeof tc.function.arguments === "string" 
+            ? JSON.parse(tc.function.arguments) 
+            : tc.function.arguments;
+          
+          try {
+            const result = await mcpClient.callTool({ name: tc.function.name, arguments: args });
+            const textOutput = ((result as any).content[0] as any).text;
+            
+            messages.push({
+              role: "tool",
+              toolCallId: tc.id,
+              content: textOutput,
+              name: tc.function.name,
+            });
+            // (Webhook removed from here. The backend will handle it now.)
+          } catch (error: any) {
+            console.error(`   ❌ Tool Error:`, error.message);
+            messages.push({ role: "tool", toolCallId: tc.id, content: `ERROR: ${error.message}`, name: tc.function.name });
+          }
+        }
+      } else {
+        isThinking = false; 
+      }
     }
   }
+
+  rl.close();
+  process.exit(0);
 }
 
-runAutonomousProcurement().catch(console.error);
+runInteractiveAgent().catch(console.error);

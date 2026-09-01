@@ -4,35 +4,39 @@ const globalForSync = globalThis as unknown as {
   acgState: { session: any; logs: any[] } | undefined;
 };
 
-// Initialize with the exact same static state as your React Context
 if (!globalForSync.acgState) {
   globalForSync.acgState = {
     session: null,
     logs: [{
       id: "evt_init_server",
-      timestamp: 1724300000000,
+      timestamp: Date.now(),
       action: "SESSION_INITIALIZED",
-      details: "Agent Claude 3.5 Sonnet connected. Budget: ₹5000.00",
+      details: "Agent Claude / Mistral connected. Budget: ₹5000.00",
       hash: "bdfe6899347902429ada9426d4b050f6"
     }],
   };
 }
 
+// CORS Headers to allow Port 3001 to read from Port 3000
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
 export async function GET() {
-  return NextResponse.json(globalForSync.acgState);
+  return NextResponse.json(globalForSync.acgState, { headers: corsHeaders });
 }
 
 export async function POST(req: Request) {
   const body = await req.json();
-  
-  if (body.session) {
-    globalForSync.acgState!.session = body.session;
-  }
-  
-  if (body.newLog) {
-    // Append the new log to the bottom of the array
-    globalForSync.acgState!.logs = [...globalForSync.acgState!.logs, body.newLog];
-  }
-  
-  return NextResponse.json({ success: true });
+
+  if (body.session) globalForSync.acgState!.session = body.session;
+  if (body.newLog) globalForSync.acgState!.logs = [...globalForSync.acgState!.logs, body.newLog];
+
+  return NextResponse.json({ success: true }, { headers: corsHeaders });
+}
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
 }

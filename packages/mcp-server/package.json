@@ -10,6 +10,7 @@
   "dependencies": {
     "@acg/core": "workspace:*",
     "@modelcontextprotocol/sdk": "latest",
+    "dotenv": "latest",
     "zod": "latest"
   },
   "devDependencies": {

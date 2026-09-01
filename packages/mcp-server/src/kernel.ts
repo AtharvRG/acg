@@ -7,9 +7,13 @@ import {
   SessionGovernor, 
   Gatekeeper, 
   QuoteBuilder,
+  RazorpaySettlementClient,
   ProductSKU,
   VolumeDiscountRule
 } from "@acg/core";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 // 1. Mock Data for the Hackathon Demo
 const MOCK_SKUS: ProductSKU[] = [
@@ -69,5 +73,10 @@ export const kernel = {
   catalog,
   quoteBuilder: new QuoteBuilder(catalog, signer),
   gatekeeper: new Gatekeeper(signer, nonces, clock, governor),
+  governor,
+  rzpClient: new RazorpaySettlementClient(
+    process.env.RAZORPAY_KEY_ID!,
+    process.env.RAZORPAY_KEY_SECRET!
+  ),
   SESSION_ID
 };
