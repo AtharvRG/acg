@@ -85,7 +85,8 @@ async function runAutonomousProcurement() {
 
         try {
           const result = await mcpClient.callTool({ name: tc.function.name, arguments: args });
-          const textOutput = (result.content[0] as any).text;
+          const content = (result.content ?? []) as Array<{ text?: string }>;
+          const textOutput = content[0]?.text ?? "";
           
           console.log(`   Response:`, textOutput.substring(0, 200) + (textOutput.length > 200 ? "..." : ""));
 

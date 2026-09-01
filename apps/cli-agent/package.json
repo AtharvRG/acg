@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "start": "tsx src/agent.ts"
+    "start": "tsx src/agent.ts",
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@mistralai/mistralai": "latest",
