@@ -30,60 +30,65 @@ export function CartDrawer() {
 
   const handleManualCheckout = async () => {
     setIsProcessing(true);
-    const res = await loadRazorpayScript();
+    try {
+      const res = await loadRazorpayScript();
 
-    if (!res) {
-      alert("Razorpay SDK failed to load. Are you online?");
-      setIsProcessing(false);
-      return;
-    }
-
-    const amountPaise = cartTotal * 100; // Convert to paise
-
-    // 1. Create order on our backend
-    const orderRes = await fetch("/api/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amountPaise })
-    });
-    const orderData = await orderRes.json();
-
-    if (!orderData.success) {
-      alert("Failed to create order");
-      setIsProcessing(false);
-      return;
-    }
-
-    // 2. Initialize Razorpay Modal
-    const options = {
-      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-      amount: amountPaise,
-      currency: "INR",
-      name: "CloudSaaS Headphones",
-      description: "Human Retail Checkout",
-      order_id: orderData.orderId,
-      handler: function (response: any) {
-        clearCart();
-        setIsCartOpen(false);
-        router.push(`/shop/success?payment_id=${response.razorpay_payment_id}&order_id=${response.razorpay_order_id}`);
-      },
-      prefill: {
-        name: "Human Customer",
-        email: "customer@example.com",
-        contact: "9999999999"
-      },
-      theme: {
-        color: "#000000"
+      if (!res) {
+        alert("Razorpay SDK failed to load. Are you online?");
+        return;
       }
-    };
 
-    const paymentObject = new window.Razorpay(options);
-    paymentObject.on("payment.failed", function (response: any) {
-      alert(`Payment Failed: ${response.error.description}`);
-    });
+      const amountPaise = cartTotal * 100; // Convert to paise
 
-    paymentObject.open();
-    setIsProcessing(false);
+      // 1. Create order on our backend
+      const orderRes = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amountPaise })
+      });
+      if (!orderRes.ok || !orderRes.headers.get("content-type")?.includes("application/json")) {
+        throw new Error(`Checkout service returned HTTP ${orderRes.status}`);
+      }
+      const orderData = await orderRes.json();
+
+      if (!orderData.success) {
+        throw new Error(orderData.error || "Failed to create order");
+      }
+
+      // 2. Initialize Razorpay Modal
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: amountPaise,
+        currency: "INR",
+        name: "CloudSaaS Headphones",
+        description: "Human Retail Checkout",
+        order_id: orderData.orderId,
+        handler: function (response: any) {
+          clearCart();
+          setIsCartOpen(false);
+          router.push(`/shop/success?payment_id=${response.razorpay_payment_id}&order_id=${response.razorpay_order_id}`);
+        },
+        prefill: {
+          name: "Human Customer",
+          email: "customer@example.com",
+          contact: "9999999999"
+        },
+        theme: {
+          color: "#000000"
+        }
+      };
+
+      const paymentObject = new window.Razorpay(options);
+      paymentObject.on("payment.failed", function (response: any) {
+        alert(`Payment Failed: ${response.error.description}`);
+      });
+
+      paymentObject.open();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Checkout failed");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (

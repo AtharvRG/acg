@@ -68,40 +68,49 @@ export default function ComputePortal() {
 
   const handleManualProvision = async () => {
     setIsProcessing(true);
-    const res = await new Promise((resolve) => {
-      const script = document.createElement("script");
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-    
-    if (!res) { alert("Razorpay SDK failed to load."); setIsProcessing(false); return; }
+    try {
+      const res = await new Promise((resolve) => {
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.onload = () => resolve(true);
+        script.onerror = () => resolve(false);
+        document.body.appendChild(script);
+      });
 
-    const orderRes = await fetch("/api/checkout", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amountPaise: finalPrice * 100 })
-    });
-    const orderData = await orderRes.json();
+      if (!res) { alert("Razorpay SDK failed to load."); return; }
 
-    const options = {
-      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-      amount: finalPrice * 100,
-      currency: "INR",
-      name: "Compute Store Infrastructure",
-      description: `${qty}x Enterprise GPU Nodes`,
-      order_id: orderData.orderId,
-      handler: function (response: any) {
-        setIsProvisionOpen(false);
-        router.push(`/compute/success?payment_id=${response.razorpay_payment_id}&order_id=${response.razorpay_order_id}&qty=${qty}`);
-      },
-      prefill: { name: "DevOps Engineer", email: "devops@techcorp.com", contact: "9999999999" },
-      theme: { color: "#FF5C00" }
-    };
+      const orderRes = await fetch("/api/checkout", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amountPaise: finalPrice * 100 })
+      });
+      if (!orderRes.ok || !orderRes.headers.get("content-type")?.includes("application/json")) {
+        throw new Error(`Checkout service returned HTTP ${orderRes.status}`);
+      }
+      const orderData = await orderRes.json();
+      if (!orderData.success) throw new Error(orderData.error || "Failed to create order");
 
-    const paymentObject = new (window as any).Razorpay(options);
-    paymentObject.open();
-    setIsProcessing(false);
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: finalPrice * 100,
+        currency: "INR",
+        name: "Compute Store Infrastructure",
+        description: `${qty}x Enterprise GPU Nodes`,
+        order_id: orderData.orderId,
+        handler: function (response: any) {
+          setIsProvisionOpen(false);
+          router.push(`/compute/success?payment_id=${response.razorpay_payment_id}&order_id=${response.razorpay_order_id}&qty=${qty}`);
+        },
+        prefill: { name: "DevOps Engineer", email: "devops@techcorp.com", contact: "9999999999" },
+        theme: { color: "#FF5C00" }
+      };
+
+      const paymentObject = new (window as any).Razorpay(options);
+      paymentObject.open();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Provisioning checkout failed");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
